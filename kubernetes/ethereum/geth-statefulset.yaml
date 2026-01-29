@@ -1,0 +1,178 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: geth
+  namespace: web3
+  labels:
+    app: geth
+    component: ethereum-node
+spec:
+  serviceName: geth
+  replicas: 1
+  podManagementPolicy: Parallel
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: geth
+  template:
+    metadata:
+      labels:
+        app: geth
+        component: ethereum-node
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "6060"
+        prometheus.io/path: "/debug/metrics/prometheus"
+    spec:
+      securityContext:
+        fsGroup: 1000
+        runAsUser: 1000
+        runAsNonRoot: true
+      
+      # Anti-affinity for multi-replica setup
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - geth
+                topologyKey: kubernetes.io/hostname
+      
+      # Node selection for blockchain workloads (EKS)
+      # Comment out if not using EKS with tainted nodes
+      nodeSelector:
+        workload: blockchain
+      
+      # Tolerations for tainted blockchain nodes (EKS)
+      # Comment out if not using EKS with tainted nodes
+      tolerations:
+        - key: blockchain-workload
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      
+      initContainers:
+        - name: init-permissions
+          image: busybox:1.36
+          command: ['sh', '-c', 'chown -R 1000:1000 /data']
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          securityContext:
+            runAsUser: 0
+      
+      containers:
+        - name: geth
+          image: ethereum/client-go:v1.14.11
+          imagePullPolicy: IfNotPresent
+          
+          command:
+            - geth
+          
+          args:
+            - --$(NETWORK)
+            - --syncmode=$(SYNC_MODE)
+            - --datadir=/data
+            - --http
+            - --http.addr=0.0.0.0
+            - --http.port=$(HTTP_PORT)
+            - --http.api=$(HTTP_API)
+            - --http.corsdomain=$(HTTP_CORS_ORIGINS)
+            - --http.vhosts=$(HTTP_VHOSTS)
+            - --ws
+            - --ws.addr=0.0.0.0
+            - --ws.port=$(WS_PORT)
+            - --ws.api=$(WS_API)
+            - --ws.origins=*
+            - --metrics
+            - --metrics.addr=0.0.0.0
+            - --metrics.port=$(METRICS_PORT)
+            - --port=$(P2P_PORT)
+            - --cache=$(CACHE_SIZE)
+            - --maxpeers=$(MAX_PEERS)
+            - --verbosity=3
+          
+          envFrom:
+            - configMapRef:
+                name: geth-config
+          
+          ports:
+            - name: p2p-tcp
+              containerPort: 30303
+              protocol: TCP
+            - name: p2p-udp
+              containerPort: 30303
+              protocol: UDP
+            - name: http-rpc
+              containerPort: 8545
+              protocol: TCP
+            - name: ws-rpc
+              containerPort: 8546
+              protocol: TCP
+            - name: metrics
+              containerPort: 6060
+              protocol: TCP
+          
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          
+          resources:
+            requests:
+              cpu: "1000m"
+              memory: "4Gi"
+              ephemeral-storage: "10Gi"
+            limits:
+              cpu: "4000m"
+              memory: "8Gi"
+              ephemeral-storage: "20Gi"
+          
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http-rpc
+              httpHeaders:
+                - name: Content-Type
+                  value: application/json
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - |
+                  geth attach --exec "eth.syncing" /data/geth.ipc | grep -q "false"
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+          
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: false
+  
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          app: geth
+      spec:
+        accessModes: 
+          - ReadWriteOnce
+        storageClassName: standard  # Change to your StorageClass (gp3 for AWS, etc.)
+        resources:
+          requests:
+            storage: 100Gi  # Adjust based on network (Sepolia: 100Gi, Mainnet: 1Ti+)

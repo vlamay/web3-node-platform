@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: web3
+
+resources:
+  - geth-configmap.yaml
+  - geth-secrets.yaml
+  - geth-statefulset.yaml
+  - geth-service.yaml
+  - networkpolicy.yaml
+
+commonLabels:
+  app.kubernetes.io/name: geth
+  app.kubernetes.io/instance: ethereum-node
+  app.kubernetes.io/version: "1.14.11"
+  app.kubernetes.io/component: blockchain-node
+  app.kubernetes.io/part-of: web3-platform
+  app.kubernetes.io/managed-by: kustomize

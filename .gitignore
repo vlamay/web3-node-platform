@@ -1,0 +1,82 @@
+# Kubernetes
+*.kubeconfig
+kubeconfig
+.kube/
+
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars
+.terraform.lock.hcl
+terraform.tfplan
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+
+# Helm
+charts/
+*.tgz
+
+# Temporary files
+*.tmp
+*.bak
+*.log
+*.old
+*.backup
+
+# Secrets and sensitive data
+*secret*.yaml
+*secret*.yml
+*.pem
+*.key
+*.crt
+!geth-secrets.yaml
+
+# OS files
+Thumbs.db
+Desktop.ini
+
+# Build artifacts
+bin/
+obj/
+target/
+
+# Test results
+*.test
+test-results/
+coverage/
+
+# Backups
+*.tar.gz
+backup/

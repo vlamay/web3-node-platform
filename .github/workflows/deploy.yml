@@ -1,0 +1,94 @@
+name: Deploy to Kubernetes
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      network:
+        description: 'Ethereum network'
+        required: true
+        type: choice
+        options:
+          - sepolia
+          - mainnet
+
+jobs:
+  deploy:
+    name: Deploy to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+            --name web3-node-${{ inputs.environment }} \
+            --region us-east-1
+      
+      - name: Deploy to Kubernetes
+        run: |
+          # Create namespace
+          kubectl apply -f kubernetes/base/
+          
+          # Update network configuration
+          kubectl create configmap geth-config \
+            --from-literal=NETWORK=${{ inputs.network }} \
+            --from-literal=SYNC_MODE=snap \
+            --from-literal=HTTP_PORT=8545 \
+            --from-literal=WS_PORT=8546 \
+            --from-literal=METRICS_PORT=6060 \
+            --from-literal=P2P_PORT=30303 \
+            --from-literal=HTTP_API="eth,net,web3,txpool" \
+            --from-literal=WS_API="eth,net,web3" \
+            --from-literal=HTTP_CORS_ORIGINS="*" \
+            --from-literal=HTTP_VHOSTS="*" \
+            --from-literal=CACHE_SIZE=2048 \
+            --from-literal=MAX_PEERS=50 \
+            --from-literal=LOG_LEVEL=info \
+            --namespace=web3 \
+            --dry-run=client -o yaml | kubectl apply -f -
+          
+          # Apply manifests
+          kubectl apply -f kubernetes/ethereum/
+          kubectl apply -f kubernetes/observability/
+      
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status statefulset/geth \
+            -n web3 \
+            --timeout=15m
+      
+      - name: Verify deployment
+        run: |
+          echo "Pods:"
+          kubectl get pods -n web3
+          
+          echo ""
+          echo "Services:"
+          kubectl get svc -n web3
+          
+          echo ""
+          echo "Recent logs:"
+          kubectl logs -n web3 -l app=geth --tail=50
+      
+      - name: Run health check
+        run: |
+          POD_NAME=$(kubectl get pod -n web3 -l app=geth -o jsonpath='{.items[0].metadata.name}')
+          kubectl exec -n web3 $POD_NAME -- geth attach --exec "net.peerCount" /data/geth.ipc || true

@@ -1,0 +1,219 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: geth-alerts
+  namespace: observability
+  labels:
+    prometheus: kube-prometheus
+    role: alert-rules
+    app: geth
+spec:
+  groups:
+    - name: ethereum-node-availability
+      interval: 30s
+      rules:
+        - alert: EthereumNodeDown
+          expr: up{job="geth-metrics"} == 0
+          for: 5m
+          labels:
+            severity: critical
+            component: ethereum-node
+          annotations:
+            summary: "Ethereum node is down"
+            description: "Geth node {{ $labels.instance }} in namespace {{ $labels.namespace }} has been down for more than 5 minutes."
+            runbook_url: "https://github.com/vlamay/web3-node-platform/blob/main/docs/runbooks/node-down.md"
+        
+        - alert: EthereumNodeRestarting
+          expr: rate(kube_pod_container_status_restarts_total{namespace="web3",pod=~"geth-.*"}[15m]) > 0
+          for: 5m
+          labels:
+            severity: warning
+            component: ethereum-node
+          annotations:
+            summary: "Ethereum node is restarting frequently"
+            description: "Pod {{ $labels.pod }} has restarted {{ $value }} times in the last 15 minutes."
+    
+    - name: ethereum-node-sync
+      interval: 30s
+      rules:
+        - alert: EthereumBlockHeightLag
+          expr: |
+            (time() - ethereum_blockchain_head_header{job="geth-metrics"}) > 300
+          for: 10m
+          labels:
+            severity: warning
+            component: ethereum-node
+          annotations:
+            summary: "Ethereum node block height lag detected"
+            description: "Node {{ $labels.instance }} is lagging behind by more than 5 minutes ({{ $value }}s lag)."
+            runbook_url: "https://github.com/vlamay/web3-node-platform/blob/main/docs/runbooks/sync-lag.md"
+        
+        - alert: EthereumSyncStalled
+          expr: |
+            rate(ethereum_blockchain_head_header{job="geth-metrics"}[10m]) == 0
+          for: 15m
+          labels:
+            severity: critical
+            component: ethereum-node
+          annotations:
+            summary: "Ethereum node sync appears stalled"
+            description: "Node {{ $labels.instance }} has not progressed block height in 15 minutes."
+        
+        - alert: EthereumHighSyncTime
+          expr: |
+            ethereum_blockchain_head_block_age{job="geth-metrics"} > 300
+          for: 10m
+          labels:
+            severity: warning
+            component: ethereum-node
+          annotations:
+            summary: "Ethereum node has high block age"
+            description: "Node {{ $labels.instance }} block age is {{ $value }}s, indicating slow sync."
+    
+    - name: ethereum-node-network
+      interval: 30s
+      rules:
+        - alert: EthereumLowPeerCount
+          expr: p2p_peers{job="geth-metrics"} < 5
+          for: 15m
+          labels:
+            severity: warning
+            component: ethereum-node
+          annotations:
+            summary: "Ethereum node has low peer count"
+            description: "Node {{ $labels.instance }} has only {{ $value }} peers. Minimum recommended is 5."
+            runbook_url: "https://github.com/vlamay/web3-node-platform/blob/main/docs/runbooks/low-peers.md"
+        
+        - alert: EthereumNoPeers
+          expr: p2p_peers{job="geth-metrics"} == 0
+          for: 10m
+          labels:
+            severity: critical
+            component: ethereum-node
+          annotations:
+            summary: "Ethereum node has no peers"
+            description: "Node {{ $labels.instance }} has 0 peers and cannot sync."
+        
+        - alert: EthereumHighPeerDropRate
+          expr: |
+            rate(p2p_peers_dropped_total{job="geth-metrics"}[5m]) > 1
+          for: 10m
+          labels:
+            severity: warning
+            component: ethereum-node
+          annotations:
+            summary: "High peer drop rate detected"
+            description: "Node {{ $labels.instance }} is dropping {{ $value }} peers per second."
+    
+    - name: ethereum-node-resources
+      interval: 30s
+      rules:
+        - alert: EthereumHighMemoryUsage
+          expr: |
+            container_memory_usage_bytes{namespace="web3",pod=~"geth-.*",container="geth"} 
+            / container_spec_memory_limit_bytes{namespace="web3",pod=~"geth-.*",container="geth"} > 0.9
+          for: 10m
+          labels:
+            severity: warning
+            component: ethereum-node
+          annotations:
+            summary: "High memory usage on Ethereum node"
+            description: "Pod {{ $labels.pod }} is using {{ $value | humanizePercentage }} of allocated memory."
+            runbook_url: "https://github.com/vlamay/web3-node-platform/blob/main/docs/runbooks/high-memory.md"
+        
+        - alert: EthereumHighCPUUsage
+          expr: |
+            rate(container_cpu_usage_seconds_total{namespace="web3",pod=~"geth-.*",container="geth"}[5m]) 
+            / container_spec_cpu_quota{namespace="web3",pod=~"geth-.*",container="geth"} * 100000 > 90
+          for: 15m
+          labels:
+            severity: warning
+            component: ethereum-node
+          annotations:
+            summary: "High CPU usage on Ethereum node"
+            description: "Pod {{ $labels.pod }} is using {{ $value }}% CPU."
+        
+        - alert: EthereumDiskSpaceLow
+          expr: |
+            (kubelet_volume_stats_available_bytes{namespace="web3",persistentvolumeclaim=~"data-geth-.*"}
+            / kubelet_volume_stats_capacity_bytes{namespace="web3",persistentvolumeclaim=~"data-geth-.*"}) < 0.15
+          for: 30m
+          labels:
+            severity: critical
+            component: ethereum-node
+          annotations:
+            summary: "Low disk space on Ethereum node PVC"
+            description: "PVC {{ $labels.persistentvolumeclaim }} has less than 15% space remaining ({{ $value | humanizePercentage }} available)."
+            runbook_url: "https://github.com/vlamay/web3-node-platform/blob/main/docs/runbooks/low-disk-space.md"
+        
+        - alert: EthereumDiskSpaceCritical
+          expr: |
+            (kubelet_volume_stats_available_bytes{namespace="web3",persistentvolumeclaim=~"data-geth-.*"}
+            / kubelet_volume_stats_capacity_bytes{namespace="web3",persistentvolumeclaim=~"data-geth-.*"}) < 0.05
+          for: 10m
+          labels:
+            severity: critical
+            component: ethereum-node
+          annotations:
+            summary: "Critical disk space on Ethereum node PVC"
+            description: "PVC {{ $labels.persistentvolumeclaim }} has less than 5% space remaining. Immediate action required!"
+    
+    - name: ethereum-node-performance
+      interval: 30s
+      rules:
+        - alert: EthereumHighRPCLatency
+          expr: |
+            histogram_quantile(0.95, rate(rpc_duration_seconds_bucket{job="geth-metrics"}[5m])) > 1
+          for: 10m
+          labels:
+            severity: warning
+            component: ethereum-node
+          annotations:
+            summary: "High RPC latency detected"
+            description: "95th percentile RPC latency on {{ $labels.instance }} is {{ $value }}s."
+        
+        - alert: EthereumHighBlockProcessingTime
+          expr: |
+            rate(blockchain_process_time_seconds_sum{job="geth-metrics"}[5m]) 
+            / rate(blockchain_process_time_seconds_count{job="geth-metrics"}[5m]) > 2
+          for: 10m
+          labels:
+            severity: warning
+            component: ethereum-node
+          annotations:
+            summary: "High block processing time"
+            description: "Average block processing time on {{ $labels.instance }} is {{ $value }}s."
+        
+        - alert: EthereumHighTransactionPoolSize
+          expr: txpool_pending{job="geth-metrics"} > 10000
+          for: 30m
+          labels:
+            severity: info
+            component: ethereum-node
+          annotations:
+            summary: "High transaction pool size"
+            description: "Node {{ $labels.instance }} has {{ $value }} pending transactions in the pool."
+    
+    - name: ethereum-node-errors
+      interval: 30s
+      rules:
+        - alert: EthereumHighErrorRate
+          expr: |
+            rate(rpc_errors_total{job="geth-metrics"}[5m]) > 10
+          for: 10m
+          labels:
+            severity: warning
+            component: ethereum-node
+          annotations:
+            summary: "High RPC error rate"
+            description: "Node {{ $labels.instance }} is experiencing {{ $value }} RPC errors per second."
+        
+        - alert: EthereumDatabaseCorruption
+          expr: |
+            increase(database_corruption_total{job="geth-metrics"}[5m]) > 0
+          labels:
+            severity: critical
+            component: ethereum-node
+          annotations:
+            summary: "Database corruption detected"
+            description: "Node {{ $labels.instance }} has detected database corruption. Immediate investigation required!"

@@ -1,0 +1,84 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: geth-network-policy
+  namespace: web3
+  labels:
+    app: geth
+spec:
+  podSelector:
+    matchLabels:
+      app: geth
+  policyTypes:
+    - Ingress
+    - Egress
+  
+  ingress:
+    # Allow P2P from anywhere (blockchain network synchronization)
+    - from:
+        - podSelector: {}
+        - namespaceSelector: {}
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - port: 30303
+          protocol: TCP
+        - port: 30303
+          protocol: UDP
+    
+    # Allow RPC/WS/Metrics only from observability namespace
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: observability
+      ports:
+        - port: 8545
+          protocol: TCP
+        - port: 8546
+          protocol: TCP
+        - port: 6060
+          protocol: TCP
+    
+    # Allow RPC/WS from same namespace (for sidecars, proxies, etc.)
+    - from:
+        - podSelector: {}
+      ports:
+        - port: 8545
+          protocol: TCP
+        - port: 8546
+          protocol: TCP
+  
+  egress:
+    # Allow all egress for blockchain P2P synchronization
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - port: 30303
+          protocol: TCP
+        - port: 30303
+          protocol: UDP
+    
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: kube-system
+        - podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    
+    # Allow HTTPS for potential chain snapshots or updates
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - port: 443
+          protocol: TCP
+        - port: 80
+          protocol: TCP

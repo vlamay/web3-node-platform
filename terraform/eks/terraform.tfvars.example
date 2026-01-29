@@ -1,0 +1,54 @@
+# Example Terraform Variables
+# Copy this file to terraform.tfvars and customize for your needs
+
+# Basic Configuration
+project_name = "web3-node"
+environment  = "dev"  # dev, staging, prod
+aws_region   = "us-east-1"
+
+# Network Configuration
+vpc_cidr = "10.0.0.0/16"
+availability_zones = [
+  "us-east-1a",
+  "us-east-1b",
+  "us-east-1c"
+]
+
+# EKS Cluster
+kubernetes_version = "1.28"
+
+# Node Configuration
+# For Sepolia testnet
+node_instance_types = ["m5.xlarge"]   # 4 vCPU, 16 GB RAM (~$140/month)
+# For mainnet, use:
+# node_instance_types = ["m5.2xlarge"]  # 8 vCPU, 32 GB RAM (~$280/month)
+
+node_desired_size = 1
+node_min_size     = 1
+node_max_size     = 3
+node_disk_size    = 100  # GB for OS
+
+# Storage for Ethereum Data
+# Sepolia: 100-200 GB
+# Mainnet: 800-1000 GB
+eth_data_storage_gi = 200
+
+# Cost Optimization
+# Use single NAT gateway (cheaper but less HA)
+single_nat_gateway = true
+
+# Enable NAT gateway (set to false for testing to save costs)
+enable_nat_gateway = true
+
+# Cluster Autoscaler
+enable_cluster_autoscaler = true
+
+# Tags
+common_tags = {
+  Project     = "web3-node-platform"
+  Environment = "dev"
+  ManagedBy   = "terraform"
+  GitRepo     = "github.com/vlamay/web3-node-platform"
+  Owner       = "your-name"
+  CostCenter  = "engineering"
+}

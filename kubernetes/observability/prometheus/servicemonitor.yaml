@@ -1,0 +1,29 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: geth-metrics
+  namespace: observability
+  labels:
+    app: geth
+    prometheus: kube-prometheus
+    release: prometheus
+spec:
+  namespaceSelector:
+    matchNames:
+      - web3
+  selector:
+    matchLabels:
+      app: geth
+  endpoints:
+    - port: metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      path: /debug/metrics/prometheus
+      scheme: http
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace

@@ -1,0 +1,150 @@
+{
+  "title": "Ethereum Node Dashboard",
+  "uid": "ethereum-node",
+  "tags": ["ethereum", "blockchain", "geth"],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": {"from": "now-6h", "to": "now"},
+  "templating": {
+    "list": [
+      {
+        "name": "DS_PROMETHEUS",
+        "type": "datasource",
+        "query": "prometheus",
+        "label": "Datasource"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "title": "Node Status",
+      "type": "stat",
+      "targets": [{"expr": "up{job=\"geth-metrics\"}"}],
+      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"options": {"0": {"text": "Down", "color": "red"}, "1": {"text": "Up", "color": "green"}}, "type": "value"}
+          ]
+        }
+      }
+    },
+    {
+      "title": "Block Height",
+      "type": "timeseries",
+      "targets": [{"expr": "ethereum_blockchain_head_header{job=\"geth-metrics\"}", "legendFormat": "Block Height"}],
+      "gridPos": {"h": 8, "w": 10, "x": 4, "y": 0}
+    },
+    {
+      "title": "Connected Peers",
+      "type": "gauge",
+      "targets": [{"expr": "p2p_peers{job=\"geth-metrics\"}"}],
+      "gridPos": {"h": 4, "w": 5, "x": 14, "y": 0},
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              {"value": 0, "color": "red"},
+              {"value": 5, "color": "yellow"},
+              {"value": 10, "color": "green"}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Chain Head Age",
+      "type": "stat",
+      "targets": [{"expr": "time() - ethereum_blockchain_head_header{job=\"geth-metrics\"}"}],
+      "gridPos": {"h": 4, "w": 5, "x": 19, "y": 0},
+      "fieldConfig": {"defaults": {"unit": "s", "thresholds": {"steps": [{"value": 0, "color": "green"}, {"value": 30, "color": "yellow"}, {"value": 60, "color": "red"}]}}}
+    },
+    {
+      "title": "Sync Status",
+      "type": "stat",
+      "targets": [{"expr": "ethereum_blockchain_sync_status{job=\"geth-metrics\"}"}],
+      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 5},
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"options": {"match": "null", "result": {"text": "Synced", "color": "green"}}, "type": "special"}
+          ]
+        }
+      }
+    },
+    {
+      "title": "Peer Count Over Time",
+      "type": "timeseries",
+      "targets": [
+        {"expr": "p2p_peers{job=\"geth-metrics\"}", "legendFormat": "Total Peers"},
+        {"expr": "p2p_peers_inbound{job=\"geth-metrics\"}", "legendFormat": "Inbound"},
+        {"expr": "p2p_peers_outbound{job=\"geth-metrics\"}", "legendFormat": "Outbound"}
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 9}
+    },
+    {
+      "title": "Network Traffic",
+      "type": "timeseries",
+      "targets": [
+        {"expr": "rate(p2p_ingress{job=\"geth-metrics\"}[5m])", "legendFormat": "Ingress"},
+        {"expr": "rate(p2p_egress{job=\"geth-metrics\"}[5m])", "legendFormat": "Egress"}
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 9},
+      "fieldConfig": {"defaults": {"unit": "Bps"}}
+    },
+    {
+      "title": "RPC Requests Rate",
+      "type": "timeseries",
+      "targets": [{"expr": "rate(rpc_requests_total{job=\"geth-metrics\"}[5m])", "legendFormat": "{{method}}"}],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 17},
+      "fieldConfig": {"defaults": {"unit": "reqps"}}
+    },
+    {
+      "title": "RPC Latency (p95/p99)",
+      "type": "timeseries",
+      "targets": [
+        {"expr": "histogram_quantile(0.95, rate(rpc_duration_seconds_bucket{job=\"geth-metrics\"}[5m]))", "legendFormat": "p95"},
+        {"expr": "histogram_quantile(0.99, rate(rpc_duration_seconds_bucket{job=\"geth-metrics\"}[5m]))", "legendFormat": "p99"}
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 17},
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "title": "CPU Usage",
+      "type": "timeseries",
+      "targets": [{"expr": "rate(container_cpu_usage_seconds_total{namespace=\"web3\",pod=~\"geth-.*\",container=\"geth\"}[5m]) * 100", "legendFormat": "CPU %"}],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 25},
+      "fieldConfig": {"defaults": {"unit": "percent", "max": 100}}
+    },
+    {
+      "title": "Memory Usage",
+      "type": "timeseries",
+      "targets": [
+        {"expr": "container_memory_usage_bytes{namespace=\"web3\",pod=~\"geth-.*\",container=\"geth\"}", "legendFormat": "Usage"},
+        {"expr": "container_spec_memory_limit_bytes{namespace=\"web3\",pod=~\"geth-.*\",container=\"geth\"}", "legendFormat": "Limit"}
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 25},
+      "fieldConfig": {"defaults": {"unit": "bytes"}}
+    },
+    {
+      "title": "Disk Usage",
+      "type": "timeseries",
+      "targets": [
+        {"expr": "kubelet_volume_stats_used_bytes{namespace=\"web3\",persistentvolumeclaim=~\"data-geth-.*\"}", "legendFormat": "Used"},
+        {"expr": "kubelet_volume_stats_capacity_bytes{namespace=\"web3\",persistentvolumeclaim=~\"data-geth-.*\"}", "legendFormat": "Capacity"}
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 33},
+      "fieldConfig": {"defaults": {"unit": "bytes"}}
+    },
+    {
+      "title": "Disk IOPS",
+      "type": "timeseries",
+      "targets": [
+        {"expr": "rate(container_fs_reads_total{namespace=\"web3\",pod=~\"geth-.*\"}[5m])", "legendFormat": "Read IOPS"},
+        {"expr": "rate(container_fs_writes_total{namespace=\"web3\",pod=~\"geth-.*\"}[5m])", "legendFormat": "Write IOPS"}
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 33},
+      "fieldConfig": {"defaults": {"unit": "iops"}}
+    }
+  ]
+}

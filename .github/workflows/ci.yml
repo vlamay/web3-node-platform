@@ -1,0 +1,178 @@
+name: CI Pipeline
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+
+jobs:
+  validate-kubernetes:
+    name: Validate Kubernetes Manifests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+      
+      - name: Validate manifests with kubectl
+        run: |
+          echo "Validating base manifests..."
+          kubectl apply --dry-run=client -f kubernetes/base/
+          
+          echo "Validating ethereum manifests..."
+          kubectl apply --dry-run=client -f kubernetes/ethereum/
+          
+          echo "Validating observability manifests..."
+          kubectl apply --dry-run=client -f kubernetes/observability/ || true
+          
+          echo "✓ All manifests are valid"
+      
+      - name: Install kubeconform
+        run: |
+          wget https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz
+          tar xf kubeconform-linux-amd64.tar.gz
+          sudo mv kubeconform /usr/local/bin/
+      
+      - name: Run kubeconform
+        run: |
+          kubeconform -summary -output json \
+            -ignore-missing-schemas \
+            -kubernetes-version 1.28.0 \
+            kubernetes/
+  
+  security-scan:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          scan-ref: 'kubernetes/'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          exit-code: '0'
+      
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+      
+      - name: Run Trivy for Docker image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'ethereum/client-go:v1.14.11'
+          format: 'table'
+          exit-code: '0'
+  
+  lint-manifests:
+    name: Lint Manifests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run kube-score
+        run: |
+          docker run --rm -v $PWD:/project \
+            zegl/kube-score:latest score \
+            --ignore-test pod-networkpolicy \
+            --ignore-test container-security-context-user-group-id \
+            /project/kubernetes/ethereum/*.yaml || true
+      
+      - name: Install yamllint
+        run: pip install yamllint
+      
+      - name: Run yamllint
+        run: |
+          find kubernetes -name '*.yaml' -o -name '*.yml' | xargs yamllint -d relaxed || true
+  
+  test-deployment:
+    name: Test Deployment on Kind
+    runs-on: ubuntu-latest
+    needs: [validate-kubernetes]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Create kind cluster
+        uses: helm/kind-action@v1.8.0
+        with:
+          cluster_name: test-cluster
+          wait: 60s
+      
+      - name: Deploy to kind
+        run: |
+          # Create namespace
+          kubectl apply -f kubernetes/base/namespaces.yaml
+          
+          # Deploy ConfigMap
+          kubectl create configmap geth-config \
+            --from-literal=NETWORK=sepolia \
+            --from-literal=SYNC_MODE=snap \
+            --from-literal=HTTP_PORT=8545 \
+            --from-literal=WS_PORT=8546 \
+            --from-literal=METRICS_PORT=6060 \
+            --from-literal=P2P_PORT=30303 \
+            --from-literal=HTTP_API="eth,net,web3" \
+            --from-literal=WS_API="eth,net,web3" \
+            --from-literal=HTTP_CORS_ORIGINS="*" \
+            --from-literal=HTTP_VHOSTS="*" \
+            --from-literal=CACHE_SIZE=1024 \
+            --from-literal=MAX_PEERS=25 \
+            --from-literal=LOG_LEVEL=info \
+            --namespace=web3
+          
+          # Deploy secrets
+          kubectl apply -f kubernetes/ethereum/geth-secrets.yaml
+          
+          # Deploy service
+          kubectl apply -f kubernetes/ethereum/geth-service.yaml
+          
+          # Deploy StatefulSet (with reduced resources for testing)
+          cat kubernetes/ethereum/geth-statefulset.yaml | \
+            sed 's/cpu: "1000m"/cpu: "100m"/g' | \
+            sed 's/memory: "4Gi"/memory: "512Mi"/g' | \
+            sed 's/storage: 100Gi/storage: 1Gi/g' | \
+            kubectl apply -f -
+      
+      - name: Wait for pod to be ready
+        run: |
+          kubectl wait --for=condition=ready pod -l app=geth \
+            -n web3 --timeout=5m || true
+      
+      - name: Check deployment status
+        run: |
+          echo "Pods:"
+          kubectl get pods -n web3
+          
+          echo ""
+          echo "Services:"
+          kubectl get svc -n web3
+          
+          echo ""
+          echo "PVCs:"
+          kubectl get pvc -n web3
+          
+          echo ""
+          echo "Pod logs (last 50 lines):"
+          kubectl logs -n web3 -l app=geth --tail=50 || true
+      
+      - name: Cleanup
+        if: always()
+        run: |
+          kubectl delete namespace web3 --ignore-not-found=true

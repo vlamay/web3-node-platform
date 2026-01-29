@@ -1,0 +1,41 @@
+# kind cluster configuration for web3-node-platform
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+
+name: web3-node
+
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
+    extraPortMappings:
+      # RPC port
+      - containerPort: 30001
+        hostPort: 8545
+        protocol: TCP
+      # WebSocket port
+      - containerPort: 30002
+        hostPort: 8546
+        protocol: TCP
+      # Metrics port
+      - containerPort: 30003
+        hostPort: 6060
+        protocol: TCP
+  
+  - role: worker
+    labels:
+      workload: blockchain
+
+# Enable required features
+featureGates:
+  EphemeralContainers: true
+
+# Networking configuration
+networking:
+  disableDefaultCNI: false
+  podSubnet: "10.244.0.0/16"
+  serviceSubnet: "10.96.0.0/12"

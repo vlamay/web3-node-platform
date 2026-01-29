@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: geth
+  namespace: web3
+  labels:
+    app: geth
+    component: ethereum-node
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "6060"
+    prometheus.io/path: "/debug/metrics/prometheus"
+spec:
+  selector:
+    app: geth
+  type: ClusterIP
+  ports:
+    - name: p2p-tcp
+      port: 30303
+      targetPort: p2p-tcp
+      protocol: TCP
+    - name: p2p-udp
+      port: 30303
+      targetPort: p2p-udp
+      protocol: UDP
+    - name: http-rpc
+      port: 8545
+      targetPort: http-rpc
+      protocol: TCP
+    - name: ws-rpc
+      port: 8546
+      targetPort: ws-rpc
+      protocol: TCP
+    - name: metrics
+      port: 6060
+      targetPort: metrics
+      protocol: TCP
+---
+# Headless service for StatefulSet
+apiVersion: v1
+kind: Service
+metadata:
+  name: geth-headless
+  namespace: web3
+  labels:
+    app: geth
+spec:
+  selector:
+    app: geth
+  clusterIP: None
+  ports:
+    - name: p2p-tcp
+      port: 30303
+      targetPort: p2p-tcp
