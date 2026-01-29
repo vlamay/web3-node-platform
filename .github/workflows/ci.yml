@@ -7,6 +7,11 @@ on:
     branches: [main, develop]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
 jobs:
   validate-kubernetes:
     name: Validate Kubernetes Manifests
@@ -24,13 +29,13 @@ jobs:
       - name: Validate manifests with kubectl
         run: |
           echo "Validating base manifests..."
-          kubectl apply --dry-run=client -f kubernetes/base/
+          kubectl apply --dry-run=client --validate=true -f kubernetes/base/ -o yaml > /dev/null
           
           echo "Validating ethereum manifests..."
-          kubectl apply --dry-run=client -f kubernetes/ethereum/
+          kubectl apply --dry-run=client --validate=true -f kubernetes/ethereum/ -o yaml > /dev/null
           
           echo "Validating observability manifests..."
-          kubectl apply --dry-run=client -f kubernetes/observability/ || true
+          kubectl apply --dry-run=client --validate=true -f kubernetes/observability/ -o yaml > /dev/null || true
           
           echo "✓ All manifests are valid"
       
@@ -65,7 +70,7 @@ jobs:
           exit-code: '0'
       
       - name: Upload Trivy results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'
