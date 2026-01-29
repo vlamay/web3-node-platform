@@ -28,7 +28,10 @@ spec:
       securityContext:
         fsGroup: 1000
         runAsUser: 1000
+        runAsGroup: 1000
         runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       
       # Anti-affinity for multi-replica setup
       affinity:
@@ -66,6 +69,14 @@ spec:
               mountPath: /data
           securityContext:
             runAsUser: 0
+            runAsNonRoot: false
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+            readOnlyRootFilesystem: true
       
       containers:
         - name: geth
@@ -158,11 +169,16 @@ spec:
             failureThreshold: 5
           
           securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
             allowPrivilegeEscalation: false
             capabilities:
               drop:
                 - ALL
-            readOnlyRootFilesystem: false
+            readOnlyRootFilesystem: false  # Geth writes to /data
+            seccompProfile:
+              type: RuntimeDefault
   
   volumeClaimTemplates:
     - metadata:
