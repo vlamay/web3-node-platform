@@ -1,0 +1,9 @@
+# Default owners
+* @vlamay
+
+# Infrastructure
+terraform/ @vlamay
+kubernetes/ @vlamay
+
+# CI/CD
+.github/workflows/ @vlamay
