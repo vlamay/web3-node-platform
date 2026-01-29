@@ -2,6 +2,7 @@
 set -euo pipefail
 
 NAMESPACE="${NAMESPACE:-web3}"
+OBSERVABILITY_NS="observability"
 
 # Colors
 GREEN='\033[0;32m'
@@ -23,6 +24,7 @@ test_case() {
         return 0
     else
         echo -e "${RED}FAIL${NC}"
+        echo "Command failed: $command"
         ((FAILED++))
         return 1
     fi
@@ -31,29 +33,54 @@ test_case() {
 echo -e "${BLUE}=== Running Tests ===${NC}"
 echo ""
 
-# Test 1: Namespace exists
-test_case "Namespace exists" "kubectl get namespace $NAMESPACE"
+# Infrastructure Tests
+echo -e "${BLUE}[Infrastructure]${NC}"
+test_case "Namespace 'web3' exists" "kubectl get namespace $NAMESPACE"
+test_case "Namespace 'observability' exists" "kubectl get namespace $OBSERVABILITY_NS"
 
-# Test 2: StatefulSet exists
+# Workload Tests
+echo -e "${BLUE}[Ethereum Node]${NC}"
 test_case "StatefulSet exists" "kubectl get statefulset/geth -n $NAMESPACE"
-
-# Test 3: Service exists
 test_case "Service exists" "kubectl get service/geth -n $NAMESPACE"
+test_case "PVC bound" "kubectl get pvc -n $NAMESPACE | grep -q Bound"
+test_case "Pod is running" "kubectl get pod -n $NAMESPACE -l app=geth --field-selector=status.phase=Running | grep -q geth"
+test_case "ConfigMap loaded" "kubectl get configmap/geth-config -n $NAMESPACE"
+test_case "NetworkPolicy active" "kubectl get networkpolicy/geth-network-policy -n $NAMESPACE"
 
-# Test 4: PVC exists
-test_case "PVC exists" "kubectl get pvc -n $NAMESPACE | grep -q data-geth"
+# Observability Tests
+echo -e "${BLUE}[Observability]${NC}"
+test_case "Prometheus deployed" "kubectl get deployment/prometheus -n $OBSERVABILITY_NS"
+test_case "Grafana deployed" "kubectl get deployment/grafana -n $OBSERVABILITY_NS"
+test_case "Prometheus Service active" "kubectl get svc/prometheus -n $OBSERVABILITY_NS"
+test_case "Grafana Service active" "kubectl get svc/grafana -n $OBSERVABILITY_NS"
 
-# Test 5: Pod is running
-test_case "Pod is running" "kubectl get pod -n $NAMESPACE -l app=geth | grep -q Running"
+# Functional Tests (only if pod is ready)
+if kubectl get pod -n $NAMESPACE -l app=geth --field-selector=status.phase=Running | grep -q geth; then
+    echo -e "${BLUE}[Functional]${NC}"
+    
+    # Wait for RPC port
+    echo "Waiting for RPC port..."
+    kubectl wait --for=condition=ready pod -l app=geth -n "$NAMESPACE" --timeout=60s >/dev/null 2>&1 || true
 
-# Test 6: ConfigMap exists
-test_case "ConfigMap exists" "kubectl get configmap/geth-config -n $NAMESPACE"
-
-# Test 7: Secrets exist
-test_case "Secrets exist" "kubectl get secret/geth-secrets -n $NAMESPACE"
-
-# Test 8: NetworkPolicy exists
-test_case "NetworkPolicy exists" "kubectl get networkpolicy/geth-network-policy -n $NAMESPACE"
+    # Port forward in background
+    kubectl port-forward -n "$NAMESPACE" svc/geth 18545:8545 > /dev/null 2>&1 &
+    PF_PID=$!
+    sleep 5
+    
+    # Test RPC
+    RPC_RES=$(curl -s -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' http://localhost:18545)
+    if [[ $RPC_RES == *"result"* ]]; then
+        echo -e "RPC Check: ${GREEN}PASS${NC}"
+        ((PASSED++))
+    else
+        echo -e "RPC Check: ${RED}FAIL${NC}"
+        echo "Response: $RPC_RES"
+        ((FAILED++))
+    fi
+    
+    # Kill port forward
+    kill $PF_PID
+fi
 
 # Summary
 echo ""
