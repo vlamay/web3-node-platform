@@ -21,36 +21,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Setup kubectl
-        uses: azure/setup-kubectl@v3
-        with:
-          version: 'v1.28.0'
-      
-      - name: Validate manifests with kubectl
-        run: |
-          echo "Validating base manifests..."
-          kubectl apply --dry-run=client --validate=true -f kubernetes/base/ -o yaml > /dev/null
-          
-          echo "Validating ethereum manifests..."
-          kubectl apply --dry-run=client --validate=true -f kubernetes/ethereum/ -o yaml > /dev/null
-          
-          echo "Validating observability manifests..."
-          kubectl apply --dry-run=client --validate=true -f kubernetes/observability/ -o yaml > /dev/null || true
-          
-          echo "✓ All manifests are valid"
-      
       - name: Install kubeconform
         run: |
           wget https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz
           tar xf kubeconform-linux-amd64.tar.gz
           sudo mv kubeconform /usr/local/bin/
       
-      - name: Run kubeconform
+      - name: Validate manifests with kubeconform
         run: |
+          echo "Validating Kubernetes manifests..."
           kubeconform -summary -output json \
             -ignore-missing-schemas \
             -kubernetes-version 1.28.0 \
             kubernetes/
+          echo "✓ All manifests are valid"
   
   security-scan:
     name: Security Scanning

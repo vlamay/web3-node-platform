@@ -284,10 +284,11 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) file.
 
 ## 📞 Support
 
-- 📧 Email: support@example.com
-- 💬 Discord: [Join our server](https://discord.gg/example)
-- 🐛 Issues: [GitHub Issues](https://github.com/vlamay/web3-node-platform/issues)
+- 🐛 **Issues**: [GitHub Issues](https://github.com/vlamay/web3-node-platform/issues)
+- 📧 **Email**: vla.maidaniuk@gmail.com
+- 💼 **LinkedIn**: [Vladyslav Maidaniuk](https://www.linkedin.com/in/maidaniuk/)
+- 💻 **GitHub**: [@vlamay](https://github.com/vlamay)
 
 ---
 
-**Made with ❤️ for the Ethereum community**
+**Built for the Ethereum community** | Created by [Vladyslav Maidaniuk](https://github.com/vlamay)
