@@ -1,87 +1,107 @@
 # Troubleshooting Guide
 
-This guide covers common issues encountered when deploying and operating the Web3 Node Platform.
+## Common Issues
 
-## 🚨 Critical Conflicts
+### 1. Geth Pod Pending
 
-### 1. Environment Variable Shadowing (`GETH_PORT`)
-**Symptoms**: Geth fails to start with error: `could not parse "tcp://..." as int value from environment variable "GETH_PORT"`.
-**Cause**: Kubernetes injects `GETH_PORT` as a URL string because the service is named `geth`. This conflicts with Geth's internal port flag.
-**Fix**: `enableServiceLinks: false` is set in the Pod spec to prevent this injection.
+**Symptoms:**
+- Pod status stays in `Pending`
+- Events show `SchedulingFailed`
+
+**Possible Causes:**
+- **Insufficient Resources:** The cluster doesn't have enough CPU/Memory.
+- **PVC Binding:** PersistentVolumeClaim cannot bind to a Volume.
+- **Node Taints:** Nodes have taints that the pod doesn't tolerate.
+
+**Solutions:**
+- Check node capacity: `kubectl describe node`
+- Check PVC status: `kubectl get pvc -n web3`
+- If using specific nodes, ensure `nodeSelector` or `affinity` matches available nodes.
+- Check storage class provisioner: `kubectl get sc`
+
+### 2. Geth Not Syncing
+
+**Symptoms:**
+- `eth_syncing` returns `false` but block number is 0 or very old.
+- `p2p_peers` metric is 0.
+
+**Possible Causes:**
+- **Network Policy:** Blocking P2P traffic (port 30303).
+- **DNS Issues:** Cannot resolve bootnodes.
+- **Time Sync:** System time skew.
+
+**Solutions:**
+- Check logs: `kubectl logs -n web3 statefulset/geth`
+- Verify network policy allows egress on 30303.
+- Check peer count: `curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"net_peerCount","params":[],"id":1}' http://dlo-rpc:8545`
+- Add bootnodes manually via `EXTRA_FLAGS` in ConfigMap.
+
+### 3. Terraform Errors
+
+**Error: "Duplicate required providers"**
+- **Cause:** Provider defined in multiple files.
+- **Fix:** Keep provider cleanup in `main.tf` and remove from others.
+
+**Error: "Error acquiring the state lock"**
+- **Cause:** Previous run failed or is running.
+- **Fix:** 
+  - Check DynamoDB table for locks.
+  - Or run `terraform force-unlock <LOCK_ID>` (use with caution).
+
+### 4. Prometheus Not Scraping
+
+**Symptoms:**
+- Grafana dashboards are empty.
+- Prometheus targets show "Down" or are missing.
+
+**Possible Causes:**
+- **Annotations Missing:** Pods missing `prometheus.io/scrape: "true"`.
+- **Network Policy:** Blocking ingress to 6060.
+- **Service Discovery:** RBAC permissions missing for Prometheus.
+
+**Solutions:**
+- Check Prometheus targets: Port-forward 9090 and go to Status -> Targets.
+- Verify pod annotations: `kubectl get pod -n web3 geth-0 -o yaml`
+- Check Prometheus logs: `kubectl logs -n observability deployment/prometheus`
+
+### 5. High Resource Usage / OOMKilled
+
+**Symptoms:**
+- Pod restarts frequently with OOMKilled.
+- High `container_cpu_throttling_seconds_total`.
+
+**Solutions:**
+- Increase limits in `kustomization.yaml` or `geth-statefulset.yaml`.
+- Reduce `CACHE` size in ConfigMap.
+- Use `m5.xlarge` or larger instances for production.
 
 ---
 
-## 📦 Pod Issues
+## Debugging Commands Cheat Sheet
 
-### 1. `CrashLoopBackOff` during Initialization
-**Symptoms**: Container `init-permissions` fails with `Operation not permitted`.
-**Cause**: Some storage drivers (like Kind's local-path) do not allow `chown` by root.
-**Fix**: Rely on `fsGroup: 1000` in the security context instead of the init container.
-
-### 2. `Pending` Pod
-**Symptoms**: Pod stuck in `Pending` state.
-**Fixes**:
-- Check events: `make events`
-- Verify StorageClass exists: `kubectl get sc`
-- Check resource availability (CPU/Memory): `kubectl get nodes -o custom-columns=NAME:.metadata.name,CPU:.status.allocatable.cpu`
-
----
-
-## ⛓️ Blockchain Sync Issues
-
-### 1. Node Finds No Peers
-**Symptoms**: `net.peerCount` stays 0 for >30 minutes.
-**Fixes**:
-- Check NetworkPolicy: Ensure P2P ports (30303) are open.
-- Increase peer limit: `make deploy MAX_PEERS=100`
-- Check logs for "P2P networking" messages.
-
-### 2. Slow Sync
-**Symptoms**: Node is syncing but very slowly.
-**Fixes**:
-- Ensure you have high-performance storage (AWS `gp3` with 16000 IOPS recommended for Mainnet).
-- Increase cache size: `make deploy CACHE_SIZE=4096`
-- Check CPU throttling: `make top`
-
----
-
-## 📊 Observability Issues
-
-### 1. Manifests fail to apply (CRD error)
-**Symptoms**: `no matches for kind "ServiceMonitor"`.
-**Cause**: Prometheus Operator CRDs are not installed.
-**Fix**: Install the `kube-prometheus-stack` via Helm as described in [Deployment Guide](deployment-guide.md).
-
-### 2. No metrics in Grafana
-**Symptoms**: Dashboard shows "No data".
-**Fixes**:
-- Verify Geth metrics endpoint: `curl localhost:6060/debug/metrics/prometheus`
-- Check ServiceMonitor labels: Must match Prometheus selector labels.
-
----
-
-## 💾 Storage Issues
-
-### 1. PVC fails to bind
-**Symptoms**: PVC stuck in `Pending`.
-**Cause**: `WaitFirstConsumer` mode (standard in some SCs). Pod must be scheduled first.
-**Fix**: Ensure your node selector/affinity allows the pod to be scheduled.
-
----
-
-## 🔍 Investigation Toolkit
-
-### Essential Commands
+**Logs:**
 ```bash
-# Detailed pod info
-make describe
+# Get last 100 lines
+kubectl logs -n web3 statefulset/geth --tail=100
 
-# Tail logs
-make logs
+# Stream logs
+kubectl logs -n web3 statefulset/geth -f
+```
 
-# Last 50 events
-kubectl get events -n web3 --sort-by='.lastTimestamp' | Select-Object -Last 50
+**Shell Access:**
+```bash
+# Enter container
+kubectl exec -it -n web3 geth-0 -- sh
 
-# Check process inside container
-kubectl top pod -n web3
+# Attach to Geth JS console
+kubectl exec -it -n web3 geth-0 -- geth attach /data/geth.ipc
+```
+
+**Network Debugging:**
+```bash
+# Run a temporary debug pod
+kubectl run tmp-shell --rm -i --tty --image nicolaka/netshoot -- /bin/bash
+
+# Test connectivity
+nc -zv geth.web3.svc.cluster.local 8545
 ```

@@ -1,0 +1,15 @@
+# HELP geth_p2p_peers Number of peers connected.
+# TYPE geth_p2p_peers gauge
+geth_p2p_peers 25
+
+# HELP eth_blockchain_height Current block height of the chain.
+# TYPE eth_blockchain_height gauge
+eth_blockchain_height 18942001
+
+# HELP system_cpu_sysload System cpu load.
+# TYPE system_cpu_sysload gauge
+system_cpu_sysload{host="geth-0"} 2.45
+
+# HELP system_memory_allocs Memory allocations.
+# TYPE system_memory_allocs gauge
+system_memory_allocs{host="geth-0"} 4.2e+09

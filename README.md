@@ -191,11 +191,11 @@ make deploy \
 
 ## 📖 Documentation
 
-- [**Deployment Guide**](docs/deployment-guide.md) - Detailed deployment instructions
-- [**Architecture**](docs/architecture.md) - System design and components
-- [**Troubleshooting**](docs/troubleshooting.md) - Common issues and solutions
-- [**Monitoring**](docs/monitoring.md) - Observability setup and dashboards
-- [**Security**](docs/security.md) - Security best practices
+- [**Deployment Guide**](docs/DEPLOYMENT_GUIDE.md) - Detailed deployment instructions
+- [**Architecture**](docs/ARCHITECTURE.md) - System design and components
+- [**Troubleshooting**](docs/TROUBLESHOOTING.md) - Common issues and solutions
+- [**Metrics Example**](docs/examples/metrics_sample.txt) - Sample Prometheus metrics
+- [**Contributing**](CONTRIBUTING.md) - Contribution guidelines
 
 ## 🛠️ Available Commands
 
