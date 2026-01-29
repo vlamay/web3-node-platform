@@ -1,0 +1,47 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: web3
+
+resources:
+  - ../../ethereum
+
+patches:
+  - target:
+      kind: StatefulSet
+      name: geth
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 3
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "4000m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "16Gi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "8000m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "32Gi"
+  
+  - target:
+      kind: PersistentVolumeClaim
+    patch: |-
+      - op: replace
+        path: /spec/resources/requests/storage
+        value: "1000Gi"
+      - op: replace
+        path: /spec/storageClassName
+        value: "gp3"
+
+configMapGenerator:
+  - name: geth-config
+    namespace: web3
+    literals:
+      - NETWORK=mainnet
+      - SYNC_MODE=snap
+      - CACHE_SIZE=4096
+      - MAX_PEERS=100
