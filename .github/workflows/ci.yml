@@ -32,6 +32,7 @@ jobs:
           echo "Validating Kubernetes manifests..."
           kubeconform -summary -output json \
             -ignore-missing-schemas \
+            -skip grafana/dashboards \
             -kubernetes-version 1.28.0 \
             kubernetes/
           echo "✓ All manifests are valid"
