@@ -97,3 +97,9 @@ variable "single_nat_gateway" {
   type        = bool
   default     = true
 }
+
+variable "velero_backup_bucket" {
+  description = "S3 bucket name for Velero backups"
+  type        = string
+  default     = ""
+}
