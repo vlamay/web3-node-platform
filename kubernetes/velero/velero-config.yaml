@@ -1,0 +1,30 @@
+apiVersion: velero.io/v1
+kind: BackupStorageLocation
+metadata:
+  name: aws-s3
+  namespace: velero
+spec:
+  provider: aws
+  objectStorage:
+    bucket: web3-node-backups-${AWS_ACCOUNT_ID}
+    prefix: backups
+  config:
+    region: us-east-1
+---
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: geth-daily-backup
+  namespace: velero
+spec:
+  schedule: "0 1 * * *" # Every day at 01:00
+  template:
+    includedNamespaces:
+      - web3
+    includedResources:
+      - persistentvolumeclaims
+      - statefulsets
+      - configmaps
+      - secrets
+    snapshotVolumes: true
+    ttl: 720h0m0s # 30 days
