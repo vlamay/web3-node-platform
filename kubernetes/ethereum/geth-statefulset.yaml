@@ -25,6 +25,7 @@ spec:
         prometheus.io/port: "6060"
         prometheus.io/path: "/debug/metrics/prometheus"
     spec:
+      enableServiceLinks: false
       securityContext:
         fsGroup: 1000
         runAsUser: 1000
@@ -48,35 +49,17 @@ spec:
                 topologyKey: kubernetes.io/hostname
       
       # Node selection for blockchain workloads (EKS)
-      # Comment out if not using EKS with tainted nodes
-      nodeSelector:
-        workload: blockchain
+      # Uncomment for EKS with tainted nodes
+      # nodeSelector:
+      #   workload: blockchain
       
       # Tolerations for tainted blockchain nodes (EKS)
-      # Comment out if not using EKS with tainted nodes
-      tolerations:
-        - key: blockchain-workload
-          operator: Equal
-          value: "true"
-          effect: NoSchedule
-      
-      initContainers:
-        - name: init-permissions
-          image: busybox:1.36
-          command: ['sh', '-c', 'chown -R 1000:1000 /data']
-          volumeMounts:
-            - name: data
-              mountPath: /data
-          securityContext:
-            runAsUser: 0
-            runAsNonRoot: false
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
-            seccompProfile:
-              type: RuntimeDefault
-            readOnlyRootFilesystem: true
+      # Uncomment for EKS with tainted nodes
+      # tolerations:
+      #   - key: blockchain-workload
+      #     operator: Equal
+      #     value: "true"
+      #     effect: NoSchedule
       
       containers:
         - name: geth
