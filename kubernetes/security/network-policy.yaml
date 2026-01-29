@@ -1,0 +1,167 @@
+---
+# NetworkPolicy for Geth - restrict ingress/egress
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: geth-network-policy
+  namespace: web3
+  labels:
+    app: geth
+spec:
+  podSelector:
+    matchLabels:
+      app: geth
+  policyTypes:
+    - Ingress
+    - Egress
+  
+  ingress:
+    # Allow P2P traffic (from anywhere for blockchain sync)
+    - from:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 30303
+        - protocol: UDP
+          port: 30303
+    
+    # Allow HTTP RPC (from within cluster only)
+    - from:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 8545
+    
+    # Allow WebSocket RPC (from within cluster only)
+    - from:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 8546
+    
+    # Allow Prometheus scraping from observability namespace
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: observability
+      ports:
+        - protocol: TCP
+          port: 6060
+  
+  egress:
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    
+    # Allow blockchain P2P (to internet)
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 30303
+        - protocol: UDP
+          port: 30303
+    
+    # Allow HTTPS for bootnodes and discovery
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+    
+    # Allow all egress for blockchain sync (can be restricted further)
+    - to:
+        - podSelector: {}
+---
+# NetworkPolicy for Prometheus
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: prometheus-network-policy
+  namespace: observability
+  labels:
+    app: prometheus
+spec:
+  podSelector:
+    matchLabels:
+      app: prometheus
+  policyTypes:
+    - Ingress
+    - Egress
+  
+  ingress:
+    # Allow access to Prometheus UI from anywhere in cluster
+    - from:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 9090
+  
+  egress:
+    # Allow DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    
+    # Allow scraping metrics from all namespaces
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 6060
+        - protocol: TCP
+          port: 8080
+---
+# NetworkPolicy for Grafana
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: grafana-network-policy
+  namespace: observability
+  labels:
+    app: grafana
+spec:
+  podSelector:
+    matchLabels:
+      app: grafana
+  policyTypes:
+    - Ingress
+    - Egress
+  
+  ingress:
+    # Allow access to Grafana UI
+    - from:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 3000
+  
+  egress:
+    # Allow DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    
+    # Allow queries to Prometheus
+    - to:
+        - podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - protocol: TCP
+          port: 9090

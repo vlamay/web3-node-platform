@@ -25,6 +25,7 @@ spec:
         prometheus.io/port: "6060"
         prometheus.io/path: "/debug/metrics/prometheus"
     spec:
+      serviceAccountName: geth
       enableServiceLinks: false
       securityContext:
         fsGroup: 1000

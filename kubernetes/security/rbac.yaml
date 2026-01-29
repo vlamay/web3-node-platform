@@ -1,0 +1,97 @@
+---
+# ServiceAccount for Geth
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: geth
+  namespace: web3
+  labels:
+    app: geth
+    component: ethereum-node
+---
+# ServiceAccount for Prometheus
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus
+  namespace: observability
+  labels:
+    app: prometheus
+---
+# ClusterRole for Prometheus (read-only access to K8s resources)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: prometheus
+  labels:
+    app: prometheus
+rules:
+  - apiGroups: [""]
+    resources:
+      - nodes
+      - nodes/metrics
+      - services
+      - endpoints
+      - pods
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources:
+      - configmaps
+    verbs: ["get"]
+  - apiGroups: ["networking.k8s.io"]
+    resources:
+      - ingresses
+    verbs: ["get", "list", "watch"]
+  - nonResourceURLs: ["/metrics"]
+    verbs: ["get"]
+---
+# ClusterRoleBinding for Prometheus
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus
+  labels:
+    app: prometheus
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: prometheus
+subjects:
+  - kind: ServiceAccount
+    name: prometheus
+    namespace: observability
+---
+# Role for Geth (minimal permissions in web3 namespace)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: geth
+  namespace: web3
+  labels:
+    app: geth
+rules:
+  - apiGroups: [""]
+    resources:
+      - configmaps
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources:
+      - secrets
+    verbs: ["get"]
+---
+# RoleBinding for Geth
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: geth
+  namespace: web3
+  labels:
+    app: geth
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: geth
+subjects:
+  - kind: ServiceAccount
+    name: geth
+    namespace: web3

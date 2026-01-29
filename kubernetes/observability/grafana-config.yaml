@@ -1,0 +1,128 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: observability
+  labels:
+    app: grafana
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: true
+        editable: false
+        jsonData:
+          timeInterval: "15s"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards-config
+  namespace: observability
+  labels:
+    app: grafana
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: 'default'
+        orgId: 1
+        folder: ''
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 10
+        allowUiUpdates: true
+        options:
+          path: /var/lib/grafana/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: observability
+  labels:
+    app: grafana
+data:
+  geth-dashboard.json: |
+    {
+      "dashboard": {
+        "title": "Ethereum Geth Node Metrics",
+        "tags": ["ethereum", "geth", "blockchain"],
+        "timezone": "browser",
+        "panels": [
+          {
+            "title": "Geth Node Status",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "up{job=\"geth\"}",
+                "legendFormat": "Node Status"
+              }
+            ],
+            "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0}
+          },
+          {
+            "title": "Peer Count",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "p2p_peers",
+                "legendFormat": "Peers"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4}
+          },
+          {
+            "title": "Block Height",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "eth_blockchain_height",
+                "legendFormat": "Current Block"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4}
+          },
+          {
+            "title": "CPU Usage",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(container_cpu_usage_seconds_total{pod=~\"geth-.*\"}[5m]) * 100",
+                "legendFormat": "CPU %"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 8, "x": 0, "y": 12}
+          },
+          {
+            "title": "Memory Usage",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "container_memory_working_set_bytes{pod=~\"geth-.*\"} / 1024 / 1024 / 1024",
+                "legendFormat": "Memory (GB)"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 8, "x": 8, "y": 12}
+          },
+          {
+            "title": "Disk Usage",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "node_filesystem_avail_bytes{mountpoint=\"/data\"} / 1024 / 1024 / 1024",
+                "legendFormat": "Available (GB)"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 8, "x": 16, "y": 12}
+          }
+        ],
+        "refresh": "30s",
+        "schemaVersion": 27,
+        "version": 1
+      }
+    }

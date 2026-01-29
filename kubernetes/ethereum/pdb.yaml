@@ -1,0 +1,16 @@
+---
+# PodDisruptionBudget for Geth (High Availability)
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: geth-pdb
+  namespace: web3
+  labels:
+    app: geth
+    component: ethereum-node
+spec:
+  minAvailable: 1  # At least 1 pod must be available during disruptions
+  selector:
+    matchLabels:
+      app: geth
+  unhealthyPodEvictionPolicy: IfHealthyBudget
