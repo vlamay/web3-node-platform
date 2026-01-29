@@ -1,0 +1,31 @@
+# HELP eth_blockchain_height Current block height of the chain
+# TYPE eth_blockchain_height gauge
+eth_blockchain_height 18923456
+
+# HELP p2p_peers Number of connected peers
+# TYPE p2p_peers gauge
+p2p_peers 35
+
+# HELP system_cpu_sysload System CPU load
+# TYPE system_cpu_sysload gauge
+system_cpu_sysload 25.4
+
+# HELP system_memory_allocs System memory allocations
+# TYPE system_memory_allocs gauge
+system_memory_allocs 4.2e+09
+
+# HELP geth_txpool_pending Number of pending transactions
+# TYPE geth_txpool_pending gauge
+geth_txpool_pending 142
+
+# HELP container_cpu_usage_seconds_total Cumulative CPU usage
+# TYPE container_cpu_usage_seconds_total counter
+container_cpu_usage_seconds_total{container="geth",namespace="web3",pod="geth-0"} 14532.54
+
+# HELP container_memory_working_set_bytes Current working set memory
+# TYPE container_memory_working_set_bytes gauge
+container_memory_working_set_bytes{container="geth",namespace="web3",pod="geth-0"} 3.85e+09
+
+# HELP node_filesystem_avail_bytes Filesystem available space
+# TYPE node_filesystem_avail_bytes gauge
+node_filesystem_avail_bytes{device="/dev/xvda1",mountpoint="/data"} 8.5e+10

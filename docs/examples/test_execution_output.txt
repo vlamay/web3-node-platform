@@ -1,0 +1,26 @@
+=== Running Tests ===
+
+[Infrastructure]
+Testing: Namespace 'web3' exists... PASS
+Testing: Namespace 'observability' exists... PASS
+
+[Ethereum Node]
+Testing: StatefulSet exists... PASS
+Testing: Service exists... PASS
+Testing: PVC bound... PASS
+Testing: Pod is running... PASS
+Testing: ConfigMap loaded... PASS
+Testing: NetworkPolicy active... PASS
+
+[Observability]
+Testing: Prometheus deployed... PASS
+Testing: Grafana deployed... PASS
+Testing: Prometheus Service active... PASS
+Testing: Grafana Service active... PASS
+
+[Functional]
+Waiting for RPC port...
+RPC Check: PASS
+
+=========================================
+All tests passed! (12/12)
