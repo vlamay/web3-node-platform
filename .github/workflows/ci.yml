@@ -30,11 +30,9 @@ jobs:
       - name: Validate manifests with kubeconform
         run: |
           echo "Validating Kubernetes manifests..."
-          kubeconform -summary -output json \
+          find kubernetes -name '*.yaml' -o -name '*.yml' | xargs kubeconform -summary \
             -ignore-missing-schemas \
-            -skip grafana/dashboards \
-            -kubernetes-version 1.28.0 \
-            kubernetes/
+            -kubernetes-version 1.28.0
           echo "✓ All manifests are valid"
   
   security-scan:
